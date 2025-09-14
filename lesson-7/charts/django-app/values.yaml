@@ -1,0 +1,26 @@
+image:
+  repository: 865683084473.dkr.ecr.eu-west-2.amazonaws.com/lesson-5-ecr
+  tag: v2
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+env:
+  DEBUG: "False"
+  SECRET_KEY: "changeme123"  # можливо винести як секрет
+  ALLOWED_HOSTS: "a6c577b581d834a09ab2eae1b6839896-1781415.eu-west-2.elb.amazonaws.com"
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_NAME: mydb
+  POSTGRES_USER: myuser
+  POSTGRES_PASSWORD: mypassword
