@@ -32,9 +32,39 @@ controller:
     - configuration-as-code:latest
     - credentials-binding:latest
     - github:latest
+
+  JCasC:
+      configScripts:
+        seed-job-config: |
+          jenkins:
+            systemMessage: "Jenkins configured automatically via JCasC 🧩"
+            numExecutors: 2
+
+            jobs:
+              - script: >
+                  pipelineJob('seed-job') {
+                    definition {
+                      cpsScm {
+                        scm {
+                          git {
+                            remote {
+                              // 👇 replace with your repo URL or leave '.' for local Jenkinsfile
+                              url('https://github.com/staskut/goit-devops.git')
+                              credentials('github-token')  // optional if repo is private
+                            }
+                            branch('*/lesson-9')
+                          }
+                        }
+                        scriptPath('modules/jenkins/Jenkinsfile')
+                      }
+                    }
+                  }
 EOT
   ]
 
+  depends_on = [
+    kubernetes_namespace.jenkins
+  ]
 }
 
 terraform {
@@ -123,18 +153,8 @@ resource "aws_iam_role_policy" "jenkins_ecr_policy" {
   })
 }
 
-resource "helm_release" "jenkins" {
-  name             = "jenkins"
-  namespace        = "jenkins"
-  repository       = "<https://charts.jenkins.io>"
-  chart            = "jenkins"
-  version          = "5.8.27"
-  create_namespace = true
-
-  values = [
-    file("${path.module}/values.yaml")
-  ]
-
+resource "kubernetes_namespace" "jenkins" {
+  metadata {
+    name = "jenkins"
+  }
 }
-
-

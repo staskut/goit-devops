@@ -3,14 +3,14 @@ applications:
     namespace: default
     project: default
     source:
-      repoURL: <https://github.com/YOUR_USERNAME/example-repo.git>
+      repoURL: https://github.com/staskut/goit-devops.git
       path: django-chart
       targetRevision: main
       helm:
         valueFiles:
           - values.yaml
     destination:
-      server: <https://kubernetes.default.svc>
+      server: https://kubernetes.default.svc
       namespace: default
     syncPolicy:
       automated:
@@ -19,9 +19,9 @@ applications:
 
 repositories:
   - name: example-app
-    url: <https://github.com/YOUR_USERNAME/example-repo.git>
-    username: YOUR_USERNAME
-    password: YOUR_PASS
+    url: https://github.com/staskut/goit-devops.git
+#    username: YOUR_USERNAME
+#    password: YOUR_PASS
 
 repoConfig:
   insecure: "true"

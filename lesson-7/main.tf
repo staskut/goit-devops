@@ -38,12 +38,12 @@ module "eks" {
 
 data "aws_eks_cluster" "eks" {
   name = module.eks.eks_cluster_name
-  depends_on = [module.eks]
+  # depends_on = [module.eks]
 }
 
 data "aws_eks_cluster_auth" "eks" {
   name = module.eks.eks_cluster_name
-  depends_on = [module.eks]
+  # depends_on = [module.eks]
 }
 
 provider "helm" {
@@ -58,9 +58,18 @@ provider "helm" {
 
 module "jenkins" {
   source       = "./modules/jenkins"
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
   cluster_name = module.eks.eks_cluster_name
   kubeconfig = "~/.kube/config"
   providers = {
     helm = helm
   }
+  depends_on = [module.eks]
+}
+
+provider "kubernetes" {
+  host                   = data.aws_eks_cluster.eks.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.eks.token
 }
