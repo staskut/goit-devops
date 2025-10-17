@@ -1,0 +1,31 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc-gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: Immediate
+parameters: 
+    type: gp3
+    fsType: ext4
+    encrypted: "false"
+reclaimPolicy: Delete
+
+
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: ebs-sc-gp2
+#   annotations:
+#     storageclass.kubernetes.io/is-default-class: "true"
+#     "helm.sh/hook": pre-install
+#     "helm.sh/hook-weight": "0"
+#     "helm.sh/hook-delete-policy": before-hook-creation
+# provisioner: ebs.csi.aws.com
+# volumeBindingMode: Immediate
+# parameters: 
+#     type: gp2
+#     fsType: ext4
+#     encrypted: "false"
+# reclaimPolicy: Delete
