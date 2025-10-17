@@ -27,7 +27,7 @@ spec:
     }
   }
   environment {
-    ECR_REGISTRY   = "718240086377.dkr.ecr.us-east-1.amazonaws.com"
+    ECR_REGISTRY   = "865683084473.dkr.ecr.eu-west-2.amazonaws.com"
     IMAGE_NAME   = "lesson-8-9-ecr"
     IMAGE_TAG    = "v1.0.${BUILD_NUMBER}"
     COMMIT_EMAIL = "jenkins@localhost"
