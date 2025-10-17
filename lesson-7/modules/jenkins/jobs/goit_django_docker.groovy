@@ -10,7 +10,7 @@ pipelineJob("goit-django-docker") {
           branches("*/lesson-8-9")
         }
       }
-      scriptPath("Jenkinsfile")
+          scriptPath("lesson-7/Jenkinsfile")
     }
   }
 }
