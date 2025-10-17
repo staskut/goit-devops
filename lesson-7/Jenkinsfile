@@ -52,8 +52,8 @@ spec:
         container('git-cli') {
           withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_PAT')]) {
             sh '''
-              git clone https://${GITHUB_USER}:${GITHUB_PAT}@github.com/${GITHUB_USER}/DevOps-CI-CD.git
-              cd DevOps-CI-CD
+              git clone https://${GITHUB_USER}:${GITHUB_PAT}@github.com/${GITHUB_USER}/goit-devops.git
+              cd goit-devops
               git config user.email "$COMMIT_EMAIL"
               git config user.name "$COMMIT_NAME"
               git checkout lesson-8-9
