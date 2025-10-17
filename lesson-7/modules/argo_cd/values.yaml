@@ -1,4 +1,27 @@
+configs:
+  cm:
+    timeout.reconciliation: 30s
+    accounts.devops: apiKey,login
+
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      g, devops, role:admin
+
 server:
   service:
     type: LoadBalancer
     port: 443
+
+
+  extraArgs:
+    - --insecure
+
+redis:
+  enabled: true
+
+postgresql:
+  persistence:
+    enabled: true
+    # storageClass: ebs-sc
+    size: 2Gi

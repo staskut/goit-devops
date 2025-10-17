@@ -1,94 +1,52 @@
-## GoIT DevOps course - Lesson 5
+# Project usage
 
-Цей проєкт демонструє інфраструктуру AWS, створену за допомогою Terraform. Вона включає:
+This project deploys an s3, VPC(with subnets), EKS, ECR cluster using Terraform. You need an AWS account and configured credentials to use it.
 
-* **S3 + DynamoDB** для зберігання стейту
-* **VPC** з підмережами
-* **ECR** для зберігання Docker-образів
+1. Clone the repository:
+   git clone <repo-url>
+   cd <repo-directory>
 
----
+2. Initialize Terraform:
+   terraform init
 
-## Структура проєкту
+3. Preview the infrastructure plan:
+   terraform plan
 
-```
-lesson-5/
-├── backend.tf            # Бекенд (S3 + DynamoDB)
-├── main.tf               # Підключення модулів
-├── outputs.tf            # Глобальні outputs
-├── modules/
-│   ├── s3-backend/       # S3 + DynamoDB
-│   ├── vpc/              # VPC і підмережі
-│   └── ecr/              # ECR репозиторій
-└── README.md
-```
+4. Apply the configuration:
+   terraform apply
 
----
+## Backend
 
-## Команди Terraform
-
-```bash
-# Ініціалізація довкілля
+The remote backend is initially commented. After the first terraform apply:
+Uncomment the backend block in root.
+Run:
 terraform init
 
-# Прогноз змін
-terraform plan
+Now you have terraform state in remotely stored in s3 bucket.
 
-# Створення інфраструктури
-terraform apply
+!notice make sure in terraform output you have oidc_provider_arn
+if not, try creating IF by steps
 
-# Знищення інфраструктури
-terraform destroy
-```
+# Step 2
 
-> **Примітка:** Перш ніж активувати backend, створіть `S3` та `DynamoDB` локально через `terraform apply` або вручну.
+Update kubectl credentials:
+aws eks update-kubeconfig --name <cluster-name> --region <region>
 
----
+To lists all services in the namespace you specify:
+ kubectl get svc -n <your-namecpace>
 
-## Пояснення модулів
 
-### `s3-backend/`
+to get password for argocd:
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 
-Модуль для створення:
+## *Helm charts
 
-* S3-бакета для зберігання `terraform.tfstate`
-* DynamoDB-таблиці для блокування стану
+Charts are there, but if needed use commands:
+helm dependency update charts/django-app
+helm upgrade --install django-app charts/django-app
 
-**Функціональність:**
 
-* Версіонування об'єктів
-* Контроль власності
-* Теги для керування
 
----
-
-### `vpc/`
-
-Модуль створює AWS VPC із:
-
-* Основним CIDR-блоком (наприклад, `10.0.0.0/16`)
-* 3 публічними підмережами (на різних AZ)
-* 3 приватними підмережами
-
-**Функціональність:**
-
-* Мережеве ізолювання
-* Підготовка до розміщення EC2, RDS, ECS тощо
-
----
-
-### `ecr/`
-
-Модуль створює репозиторій ECR:
-
-* З підтримкою автоматичного сканування образів
-* З політикою доступу (налаштованою лише для поточного AWS акаунту)
-
-**Output:**
-
-* URL для доступу до Docker репозиторію
-
----
-
-## Висновок
-
-Цей проєкт демонструє, як розбити інфраструктуру на модулі та керувати нею ефективно за допомогою Terraform. Такий підхід дозволяє масштабувати інфраструктуру, спростити підтримку та зробити її більш безпечною і прозорою для всієї команди. 
+## Jenkins:
+ first got to UI, approve seed job
+ then build now -> it will create goit-django-docker 

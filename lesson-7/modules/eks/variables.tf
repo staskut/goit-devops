@@ -1,40 +1,25 @@
-variable "region" {
-  description = "AWS region for deployment"
-  default     = "eu-west-2"
-}
-
 variable "cluster_name" {
-  description = "Name of the EKS cluster"
-  default     = "example-eks-cluster"
+  type = string
 }
 
-variable "subnet_ids" {
-  description = "List of subnet IDs for the EKS cluster"
-  type        = list(string)
+variable "cluster_version" {
+  type = string
 }
 
-variable "node_group_name" {
-  description = "Name of the node group"
-  default     = "example-node-group"
+variable "vpc_id" {
+  type = string
 }
 
-variable "instance_type" {
-  description = "EC2 instance type for the worker nodes"
-  default     = "t3.medium"
+variable "public_subnets" {
+  type = list(string)
 }
 
-variable "desired_size" {
-  description = "Desired number of worker nodes"
-  default     = 2
+variable "private_subnets" {
+  type = list(string)
 }
 
-variable "max_size" {
-  description = "Maximum number of worker nodes"
-  default     = 3
+variable "tags" {
+  description = "A map of tags to assign to the resources."
+  type        = map(string)
+  default     = {}
 }
-
-variable "min_size" {
-  description = "Minimum number of worker nodes"
-  default     = 1
-}
-

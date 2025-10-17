@@ -1,4 +1,10 @@
 apiVersion: v2
 name: django-app
-description: Django application Helm chart
+description: A Helm chart for Kubernetesgit ls-tree -r HEAD --name-only | grep django-app
+type: application
 version: 0.1.0
+appVersion: "1.16.0"
+dependencies:
+    - name: postgresql
+      version: "15.2.0"
+      repository: "https://charts.bitnami.com/bitnami"

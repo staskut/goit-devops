@@ -1,4 +1,4 @@
- controller:
+controller:
   admin:
     username: admin
     password: admin123
@@ -20,7 +20,7 @@
   persistentVolume:
     enabled: true
     storageClass: "ebs-sc"
-    size: 10Gi
+    size: 3Gi
 
   installPlugins:
     - kubernetes:latest
@@ -32,11 +32,10 @@
     - docker-plugin:latest
     - docker-workflow:latest
     - job-dsl:latest
-
   serviceAccount:
-     name: jenkins-sa
+    #  name: jenkins-sa
+     name: ${jenkins_sa_name}
      create: false
-
   JCasC:
     configScripts:
       credentials: |
@@ -47,18 +46,44 @@
                   - usernamePassword:
                       scope: GLOBAL
                       id: github-token
+                      username: ${github_user}
+                      password: ${github_pat}
                       description: GitHub PAT
       seed-job: |
-        jenkins:
-          systemMessage: "Jenkins auto-configured via Terraform + JCasC"
-          numExecutors: 2
-          jobs:
-            - script: >
-                pipelineJob('seed-job') {
-                  definition {
-                    cps {
-                      script(readFileFromWorkspace('modules/jenkins/Jenkinsfile'))
-                      sandbox(true)
+        jobs:
+          - script: >
+              job('seed-job') {
+                description('Job to generate pipeline for Django project')
+                scm {
+                  git {
+                    remote {
+                      url('${github_repo_url}.git')
+                      credentials('github-token')
                     }
+                    branches('*/lesson-8-9')
                   }
                 }
+                steps {
+                  dsl {
+                    text('''
+                      pipelineJob("goit-django-docker") {
+                        definition {
+                          cpsScm {
+                            scm {
+                              git {
+                                remote {
+                                  url("${github_repo_url}.git")
+                                  credentials("github-token")
+                                }
+                                branches("*/lesson-8-9")
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ''')
+                  }
+                }
+              }
+
+

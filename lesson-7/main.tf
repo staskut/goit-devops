@@ -8,68 +8,139 @@ module "s3_backend" {
 provider "aws" {
   profile = "personal"  # <- замініть на потрібний профіль
   region  = "eu-west-2"                 # <- або ваш бажаний регіон
+
+  default_tags {
+      tags = var.tags
+  }
 }
 
-# Підключаємо модуль для VPC
+# Call VPC
 module "vpc" {
-  source              = "./modules/vpc"           # Шлях до модуля VPC
-  vpc_cidr_block      = "10.0.0.0/16"             # CIDR блок для VPC
-  public_subnets      = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]        # Публічні підмережі
-  private_subnets     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]         # Приватні підмережі
-  availability_zones  = ["eu-west-2a", "eu-west-2b", "eu-west-2c"]            # Зони доступності
-  vpc_name            = "vpc"              # Ім'я VPC
+  source             = "./modules/vpc"
+  vpc_cidr_block     = var.vpc_cidr_block 
+  public_subnets     = var.public_subnets_cidrs
+  private_subnets    = var.private_subnets_cidrs
+  availability_zones = var.availability_zones
+  vpc_name           = "lesson-8-9-vpc"
 }
 
+
+# Call ECR
 module "ecr" {
-  source      = "./modules/ecr"
-  ecr_name    = "lesson-5-ecr"
-  scan_on_push = true
+    source          = "./modules/ecr"
+    ecr_name        = "lesson-8-9-ecr"
+    force_delete    = true
 }
 
+
+# Call EKS module
 module "eks" {
-  source          = "./modules/eks"
-  cluster_name    = "eks-cluster-demo"            # Назва кластера
-  subnet_ids      = module.vpc.public_subnets     # ID підмереж
-  instance_type   = "t3.medium"                    # Тип інстансів
-  desired_size    = 1                             # Бажана кількість нодів
-  max_size        = 2                             # Максимальна кількість нодів
-  min_size        = 1                             # Мінімальна кількість нодів
+  source                     = "./modules/eks"
+  cluster_name               = var.cluster_name
+  cluster_version            = "1.31"
+
+  vpc_id                     = module.vpc.vpc_id
+  public_subnets             = module.vpc.public_subnets
+  private_subnets            = module.vpc.private_subnets
+
+  tags                       = var.tags
 }
+
+
+
+# IAM role for EBS CSI driver
+module "ebs_csi_driver_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name_prefix      = "AmazonEKS_EBS_CSI_Driver"
+  attach_ebs_csi_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
+# EBS CSI driver add-on
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name                       = module.eks.cluster_name
+  addon_name                         = "aws-ebs-csi-driver"
+  resolve_conflicts_on_create        = "OVERWRITE"
+  service_account_role_arn           = module.ebs_csi_driver_irsa.iam_role_arn
+
+  depends_on = [
+    module.eks,
+    module.ebs_csi_driver_irsa
+  ]
+}
+
+
+# Jenkins
 
 data "aws_eks_cluster" "eks" {
-  name = module.eks.eks_cluster_name
-  # depends_on = [module.eks]
+  name = var.cluster_name
+
+  depends_on = [module.eks]
 }
 
 data "aws_eks_cluster_auth" "eks" {
-  name = module.eks.eks_cluster_name
-  # depends_on = [module.eks]
-}
+  name = var.cluster_name
 
-provider "helm" {
-  kubernetes {
-    host                   = data.aws_eks_cluster.eks.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.eks.token
-    # config_path = "~/.kube/config"
-    # config_context = "arn:aws:eks:eu-west-2:865683084473:cluster/eks-cluster-demo"
-  }
-}
-
-module "jenkins" {
-  source       = "./modules/jenkins"
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_provider_url = module.eks.oidc_provider_url
-  cluster_name = module.eks.eks_cluster_name
-  kubeconfig = "~/.kube/config"
-  providers = {
-    helm = helm
-  }
   depends_on = [module.eks]
 }
+
+# if need import oidc_provider_arn
+# data "aws_iam_openid_connect_provider" "oidc" {
+#   url = module.eks.oidc_provider_url
+# }
 
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.eks.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
   token                  = data.aws_eks_cluster_auth.eks.token
+}
+
+
+provider "helm" {
+  kubernetes = {
+    host                   = data.aws_eks_cluster.eks.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.eks.token
+  }
+}
+
+
+data "aws_caller_identity" "current" {}
+
+
+module "jenkins" {
+  source            = "./modules/jenkins"
+  cluster_name      = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  # oidc_provider_arn = data.aws_iam_openid_connect_provider.oidc.arn
+  oidc_provider_url = module.eks.oidc_provider_url
+  github_pat        = var.github_pat
+  github_user       = var.github_user
+  github_repo_url   = var.github_repo_url
+
+  # jenkins_sa_name   = kubernetes_service_account.jenkins_sa.metadata.0.name
+  jenkins_sa_name   = module.jenkins.jenkins_sa_name
+
+  depends_on        = [module.eks]
+
+  providers         = {
+    helm       = helm
+    kubernetes = kubernetes
+  }
+}
+
+
+module "argo_cd" {
+  source        = "./modules/argo_cd"
+  namespace     = "argocd"
+  chart_version = "5.46.4"
+  depends_on    = [module.eks]
 }

@@ -1,124 +1,45 @@
-resource "helm_release" "jenkins" {
-  name       = "jenkins"
-  namespace  = "jenkins"
-  repository = "https://charts.jenkins.io"
-  chart      = "jenkins"
-  version    = "5.0.16"
-
-  values = [<<-EOT
-controller:
-  image:
-    repository: jenkins/jenkins
-    tag: "2.462.1-jdk17"
-  persistence:
-    enabled: true
-    storageClass: gp2
-    size: 10Gi
-  admin:
-    username: admin
-    password: admin123
-  serviceType: LoadBalancer
-  resources:
-    limits:
-      cpu: "500m"
-      memory: "1Gi"
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-  installPlugins:
-    - kubernetes:latest
-    - workflow-aggregator:latest
-    - git:latest
-    - configuration-as-code:latest
-    - credentials-binding:latest
-    - github:latest
-
-  JCasC:
-      configScripts:
-        seed-job-config: |
-          jenkins:
-            systemMessage: "Jenkins configured automatically via JCasC 🧩"
-            numExecutors: 2
-
-            jobs:
-              - script: >
-                  pipelineJob('seed-job') {
-                    definition {
-                      cpsScm {
-                        scm {
-                          git {
-                            remote {
-                              // 👇 replace with your repo URL or leave '.' for local Jenkinsfile
-                              url('https://github.com/staskut/goit-devops.git')
-                              credentials('github-token')  // optional if repo is private
-                            }
-                            branch('*/lesson-9')
-                          }
-                        }
-                        scriptPath('modules/jenkins/Jenkinsfile')
-                      }
-                    }
-                  }
-EOT
-  ]
-
-  depends_on = [
-    kubernetes_namespace.jenkins
-  ]
-}
-
-terraform {
-  required_providers {
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.12"
-    }
-  }
-}
-
 resource "kubernetes_storage_class_v1" "ebs_sc" {
   metadata {
-    name = "ebs-sc"
+    name        = "ebs-sc"
     annotations = {
       "storageclass.kubernetes.io/is-default-class" = "true"
     }
   }
-
   storage_provisioner = "ebs.csi.aws.com"
-
-  reclaim_policy       = "Delete"
-  volume_binding_mode  = "WaitForFirstConsumer"
-
+  reclaim_policy      = "Delete"
+  volume_binding_mode = "WaitForFirstConsumer"
   parameters = {
     type = "gp3"
   }
 }
 
+resource "kubernetes_namespace" "jenkins" {
+  metadata {
+    name = "jenkins"
+  }
+}
 resource "kubernetes_service_account" "jenkins_sa" {
   metadata {
-    name      = "jenkins-sa"
-    namespace = "jenkins"
+    name        = "jenkins-sa"
+    namespace   = "jenkins"
     annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.jenkins_kaniko_role.arn
     }
   }
-  depends_on = [
-    helm_release.jenkins
-  ]
+  depends_on = [kubernetes_namespace.jenkins]
 }
 
 resource "aws_iam_role" "jenkins_kaniko_role" {
   name = "${var.cluster_name}-jenkins-kaniko-role"
-
   assume_role_policy = jsonencode({
-    Version = "2012-10-17",
+    Version   = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
+        Effect    = "Allow",
         Principal = {
           Federated = var.oidc_provider_arn
         },
-        Action = "sts:AssumeRoleWithWebIdentity",
+        Action    = "sts:AssumeRoleWithWebIdentity",
         Condition = {
           StringEquals = {
             "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:jenkins:jenkins-sa"
@@ -128,13 +49,11 @@ resource "aws_iam_role" "jenkins_kaniko_role" {
     ]
   })
 }
-
 resource "aws_iam_role_policy" "jenkins_ecr_policy" {
   name = "${var.cluster_name}-jenkins-kaniko-ecr-policy"
   role = aws_iam_role.jenkins_kaniko_role.id
-
   policy = jsonencode({
-    Version = "2012-10-17",
+    Version   = "2012-10-17",
     Statement = [
       {
         Effect = "Allow",
@@ -153,8 +72,32 @@ resource "aws_iam_role_policy" "jenkins_ecr_policy" {
   })
 }
 
-resource "kubernetes_namespace" "jenkins" {
-  metadata {
-    name = "jenkins"
-  }
+
+
+resource "helm_release" "jenkins" {
+  name             = "jenkins"
+  namespace        = "jenkins"
+  repository       = "https://charts.jenkins.io"
+  chart            = "jenkins"
+  version          = "5.8.27"
+  create_namespace = true
+
+  # values = [
+  #   file("${path.module}/values.yaml")
+  # ]
+  values = [
+    templatefile("${path.module}/values.yaml", {
+      github_user     = var.github_user
+      github_pat      = var.github_pat
+      github_repo_url = var.github_repo_url
+
+      jenkins_sa_name = var.jenkins_sa_name
+    })
+  ]
+
+
+  # depends_on = [
+  #   aws_iam_role.jenkins_kaniko_role,
+  #   kubernetes_service_account.jenkins_sa
+  # ]
 }

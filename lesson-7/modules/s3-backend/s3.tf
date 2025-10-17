@@ -1,32 +1,33 @@
-# Створюємо S3-бакет
+# S3-bucket
 # resource "aws_s3_bucket" "terraform_state" {
-#   bucket = var.bucket_name
+#     bucket = var.bucket_name
 #
-#   tags = {
-#     Name        = "Terraform State Bucket"
-#     Environment = "lesson-5"
-#   }
+#     tags = {
+#         Name         = "Terraform State Bucket"
+#         Environment  = "lesson-9"
+#     }
+#
 # }
 
 data "aws_s3_bucket" "terraform_state" {
   bucket = var.bucket_name
 }
 
-# Налаштовуємо версіонування для S3-бакета
+# versioning for S3-bucket
 resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
-  bucket = data.aws_s3_bucket.terraform_state.id
+    bucket = data.aws_s3_bucket.terraform_state.bucket
 
-  versioning_configuration {
-    status = "Enabled"
-  }
+    versioning_configuration {
+      status = "Enabled"
+    }
+  
 }
 
-# Встановлюємо контроль власності для S3-бакета
+# ownership for S3-bucket
 resource "aws_s3_bucket_ownership_controls" "terraform_state_ownership" {
-  bucket = data.aws_s3_bucket.terraform_state.id
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
+    bucket = data.aws_s3_bucket.terraform_state.bucket
+    rule {
+      object_ownership = "BucketOwnerEnforced"
+    }
+  
 }
-
-
