@@ -1,170 +1,154 @@
-# Django on Kubernetes with Helm & ECR
+# CI/CD Infrastructure with Terraform, Jenkins & Argo CD
 
-This project demonstrates how to deploy a Django web application using **Kubernetes**, **Helm**, **AWS ECR**, and **PostgreSQL**.
+## 1. Застосування Terraform
+
+### Попередні вимоги
+
+* Встановлений **Terraform**
+* AWS CLI налаштований з правами доступу
+* Helm встановлений локально
+
+### Команди для запуску інфраструктури
+
+1. Ініціалізація Terraform:
+
+   ```bash
+   terraform init
+   ```
+
+2. Перевірка змін:
+
+   ```bash
+   terraform plan
+   ```
+
+3. Застосування конфігурацій:
+
+   ```bash
+   terraform apply
+   ```
+
+   Після виконання:
+
+   * Створюється EKS кластер.
+   * Деплоїться Jenkins (через Helm).
+   * Створюється service account та IAM роль для Kaniko.
+   * Argo CD розгортається для деплою застосунку.
+
+4. Перевірити, що Jenkins та ArgoCD запущені:
+
+   ```bash
+   kubectl get pods -n jenkins
+   kubectl get pods -n argocd
+   ```
+
+5. Отримати зовнішні URL:
+
+   ```bash
+   kubectl get svc -n jenkins
+   kubectl get svc -n argocd
+   ```
 
 ---
 
-## Stack
+## 2. Перевірка Jenkins job
 
-* Python 3.10
-* Django 5.2
-* PostgreSQL 14
-* Docker
-* Kubernetes (EKS)
-* Helm
-* AWS Elastic Container Registry (ECR)
-* Nginx (optional)
+### Вхід у Jenkins
 
----
+1. Відкрити LoadBalancer URL Jenkins:
 
-##  Deployment Overview
+   ```
+   http://<jenkins-external-dns>
+   ```
+2. Увійти під обліковими даними:
 
-### 1. Docker Image
+   * **Username:** `admin`
+   * **Password:** `admin123`
 
-Django app is packaged into a Docker image.
+### Seed Job
 
-**Build locally:**
+* При розгортанні Terraform автоматично створюється **seed-job**.
+* Вона генерує основну pipeline job: **`goit-django-docker`**.
 
-```bash
-docker build -t lesson-5-ecr:v4 ./django
-```
+### Запуск збірки
 
-**Tag & Push to ECR:**
+1. Відкрити **goit-django-docker** → **Build Now**.
+2. У логах має відображатися:
 
-```bash
-docker tag lesson-5-ecr:v4 865683084473.dkr.ecr.eu-west-2.amazonaws.com/lesson-5-ecr:v4
-docker push 865683084473.dkr.ecr.eu-west-2.amazonaws.com/lesson-5-ecr:v4
-```
+   * Клонування репозиторію GitHub
+   * Kaniko build контейнера
+   * Завантаження образу в **Amazon ECR**
 ![img.png](img.png)
----
-
-### 2. Kubernetes via Helm
-
-This project uses a Helm chart located in `./django-app/`.
-
-#### Values configured via `values.yaml`:
-
-```yaml
-replicaCount: 2
-
-image:
-  repository: 865683084473.dkr.ecr.eu-west-2.amazonaws.com/lesson-5-ecr
-  tag: v4
-
-env:
-  DEBUG: "False"
-  SECRET_KEY: "changeme123"
-  ALLOWED_HOSTS: "your-loadbalancer-url.com"
-  POSTGRES_HOST: "postgres"
-  POSTGRES_PORT: "5432"
-  POSTGRES_NAME: "mydb"
-  POSTGRES_USER: "myuser"
-  POSTGRES_PASSWORD: "mypassword"
-```
-
-#### Install or upgrade:
-
-```bash
-helm upgrade --install django ./django-app
-```
-
-#### Expose via LoadBalancer:
-
-Service is exposed on port `80` using `type: LoadBalancer`. Access the app via:
-
-```text
-http://<your-load-balancer-dns>
-```
-
-You can find the DNS name in the output of the `kubectl get svc` command.
-
 ![img_1.png](img_1.png)
 ![img_2.png](img_2.png)
+
+### Перевірка успіху
+
+* Якщо job завершується статусом **SUCCESS**, новий Docker-образ з’являється в ECR:
+
+  ```bash
+  aws ecr describe-images --repository-name <repo-name>
+  ```
+
 ![img_3.png](img_3.png)
-![img_4.png](img_4.png)
 ---
 
-## PostgreSQL Setup
+## 3. Перегляд результату в Argo CD
 
-A separate deployment for Postgres is included (can be YAML or another chart). It creates a persistent volume and exposes the DB internally in the cluster.
+### Доступ до Argo CD
 
-Connection settings for Django are passed via `ConfigMap`.
+1. Отримати URL:
 
+   ```bash
+   kubectl get svc -n argocd
+   ```
+
+   Приклад:
+
+   ```
+   argocd-server   LoadBalancer   <EXTERNAL-IP>   80:30080/TCP   20m
+   ```
+2. Відкрити у браузері:
+
+   ```
+   http://<EXTERNAL-IP>
+   ```
+3. Увійти в ArgoCD (логін/пароль виводиться після деплою):
+
+   ```bash
+   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+   ```
+
+### Перевірка деплою застосунку
+
+1. Відкрити застосунок **django-app** у ArgoCD UI.
+2. Якщо все коректно:
+
+   * Статус: `Healthy` ✅
+   * Sync status: `Synced` ✅
+3. При натисканні на поди (наприклад, `django-app-postgresql-0` або `django-app-web`) видно активний деплой.
+
+![img_5.png](img_5.png)
 ---
 
-## Run Migrations
+## Знищення інфраструктури
 
-After the pod is running, you can run migrations manually:
+Для повного очищення:
 
 ```bash
-kubectl exec -it <django-pod> -- python manage.py migrate
+terraform destroy
 ```
 
----
-
-## Testing
-
-You should be able to access `/admin` endpoint.
-
-Ensure the main route `/` is configured in `urls.py`:
-
-```python
-from django.http import HttpResponse
-
-def home(request):
-    return HttpResponse("✅ Hello from Django on Kubernetes!")
-
-urlpatterns = [
-    path('', home),
-]
-```
-
-Then access:
-
-```text
-http://<loadbalancer-dns>/
-```
-
----
-
-## Project Structure
-
-```
-.
-├── django/
-│   ├── manage.py
-│   ├── goit/
-│   │   └── settings.py
-│   └── Dockerfile
-├── django-app/         # Helm chart
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   ├── templates/
-│   │   ├── deployment.yaml
-│   │   ├── service.yaml
-│   │   └── configmap.yaml
-├── postgres.yaml       # (Optional) PostgreSQL K8s manifest
-└── README.md
-```
-
----
-
-## Notes
-
-* Keep `SECRET_KEY` secret in production.
-* Set `DEBUG: "False"` and define strict `ALLOWED_HOSTS`.
-
----
-
-## Useful Commands
+Якщо кластер вже видалено, але Terraform все ще має стейт:
 
 ```bash
-# Get pod logs
-kubectl logs <pod-name>
-
-# Check all services
-kubectl get svc
-
-# Run command inside Django pod
-kubectl exec -it <pod-name> -- bash
+terraform state rm <resource-name>
 ```
+
+---
+
+## Підсумок
+
+* **Terraform** створює кластер, Jenkins, ArgoCD та IAM ресурси.
+* **Jenkins** збирає Docker-образ з Kaniko та пушить в ECR.
+* **Argo CD** автоматично синхронізує деплой з останнім образом у GitHub.
