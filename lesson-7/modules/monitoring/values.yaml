@@ -1,0 +1,10 @@
+grafana:
+  adminUser: admin
+  adminPassword: admin123
+  persistence:
+    enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 12h
+    storageSpec: {}

@@ -43,7 +43,17 @@ resource "aws_internet_gateway" "igw" {
     tags = {
         Name    = "${var.vpc_name}-igw"
     }
+
+    depends_on = [
+        aws_subnet.public,
+        aws_subnet.private
+      ]
   
+}
+
+resource "time_sleep" "wait_before_igw_detach" {
+  destroy_duration = "30s"
+  depends_on = [aws_internet_gateway.igw]
 }
 
 # Elastic IP for private subnets

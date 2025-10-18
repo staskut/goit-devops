@@ -1,147 +1,162 @@
-# Модуль Terraform для створення RDS / Aurora PostgreSQL
+# Final DevOps Project — Terraform + AWS + EKS + Jenkins + Argo CD + Monitoring
 
-## Приклад використання модуля
+## Огляд проєкту
 
-```hcl
-module "rds" {
-  source = "./modules/rds"
-
-  name                       = "goit-devops-db"
-  use_aurora                 = true
-  aurora_instance_count      = 2
-
-  # --- Aurora-only ---
-  engine_cluster             = "aurora-postgresql"
-  engine_version_cluster     = "15.3"
-  parameter_group_family_aurora = "aurora-postgresql15"
-
-  # --- RDS-only ---
-  engine                     = "postgres"
-  engine_version             = "17.2"
-  parameter_group_family_rds = "postgres17"
-
-  # Common
-  instance_class             = "db.t3.medium"
-  allocated_storage          = 20
-  db_name                    = "myapp"
-  username                   = "postgres"
-  password                   = "admin123AWS23"
-  subnet_private_ids         = module.vpc.private_subnets
-  subnet_public_ids          = module.vpc.public_subnets
-  publicly_accessible        = false
-  vpc_id                     = module.vpc.vpc_id
-  multi_az                   = true
-  backup_retention_period    = 7
-  parameters = {
-    max_connections              = "200"
-    log_min_duration_statement   = "500"
-  }
-
-  tags = {
-    Environment = "dev"
-    Project     = "myapp"
-  }
-}
-```
+Цей фінальний проєкт демонструє повний цикл DevOps-інфраструктури в AWS з використанням **Terraform** для керування інфраструктурою як кодом.
+Середовище включає CI/CD (Jenkins + Argo CD), базу даних (RDS/Aurora), моніторинг (Prometheus + Grafana) та безпечну архітектуру через VPC.
 
 ---
 
-## Опис змінних
+## Компоненти інфраструктури
 
-| Змінна                          | Тип          | Обов’язкова | Опис                                                                  |
-| ------------------------------- | ------------ | ----------- | --------------------------------------------------------------------- |
-| `name`                          | string       | ✅           | Назва бази даних і пов’язаних ресурсів (SG, subnet group, параметри). |
-| `use_aurora`                    | bool         | ✅           | Якщо `true` — створює Aurora кластер, якщо `false` — звичайний RDS.   |
-| `aurora_instance_count`         | number       | ❌           | Кількість реплік (читачів) для Aurora.                                |
-| `engine`                        | string       | ✅           | Тип рушія для RDS, наприклад `postgres` або `mysql`.                  |
-| `engine_version`                | string       | ✅           | Версія рушія RDS (наприклад, `17.2`).                                 |
-| `parameter_group_family_rds`    | string       | ✅           | Родина параметрів для RDS, наприклад `postgres17`.                    |
-| `engine_cluster`                | string       | ❌           | Тип рушія для Aurora (наприклад `aurora-postgresql`).                 |
-| `engine_version_cluster`        | string       | ❌           | Версія Aurora рушія.                                                  |
-| `parameter_group_family_aurora` | string       | ❌           | Родина параметрів Aurora.                                             |
-| `instance_class`                | string       | ✅           | Тип EC2 інстансу для бази, наприклад `db.t3.medium`.                  |
-| `allocated_storage`             | number       | ✅           | Обсяг сховища (у ГБ).                                                 |
-| `db_name`                       | string       | ✅           | Ім’я бази даних.                                                      |
-| `username`                      | string       | ✅           | Ім’я користувача адміністратора.                                      |
-| `password`                      | string       | ✅           | Пароль адміністратора бази даних.                                     |
-| `vpc_id`                        | string       | ✅           | Ідентифікатор VPC, у якому створюється база.                          |
-| `subnet_private_ids`            | list(string) | ✅           | Ідентифікатори приватних підмереж.                                    |
-| `subnet_public_ids`             | list(string) | ✅           | Ідентифікатори публічних підмереж.                                    |
-| `publicly_accessible`           | bool         | ✅           | Дозволяє або забороняє публічний доступ до БД.                        |
-| `multi_az`                      | bool         | ❌           | Якщо `true`, створюється багатозонна реплікація.                      |
-| `backup_retention_period`       | number       | ❌           | Кількість днів збереження бекапів.                                    |
-| `parameters`                    | map(string)  | ❌           | Налаштування параметрів рушія (наприклад, `max_connections`).         |
-| `tags`                          | map(string)  | ❌           | Користувацькі теги для ресурсів.                                      |
+| Компонент                | Технологія / Сервіс               | Опис                                            |
+| ------------------------ | --------------------------------- | ----------------------------------------------- |
+| **VPC**                  | AWS VPC, Subnets, IGW, NAT        | Безпечна ізольована мережа для всіх компонентів |
+| **EKS**                  | Amazon Elastic Kubernetes Service | Оркестрація контейнерів для застосунків         |
+| **RDS / Aurora**         | PostgreSQL / Aurora PostgreSQL    | Реляційна база даних для Django-застосунку      |
+| **ECR**                  | AWS Elastic Container Registry    | Зберігання Docker-образів                       |
+| **Jenkins**              | Helm + Kubernetes                 | CI-сервер для побудови Docker-образів і деплою  |
+| **Argo CD**              | Helm + Kubernetes                 | CD-система для автоматичного синку застосунків  |
+| **Prometheus + Grafana** | kube-prometheus-stack             | Моніторинг кластера та застосунків              |
 
 ---
 
-## Як змінити тип бази або параметри
+## Розгортання Terraform
 
-### Звичайна RDS PostgreSQL
-
-```hcl
-use_aurora = false
-engine = "postgres"
-engine_version = "17.2"
-instance_class = "db.t3.medium"
-```
-
-### Aurora PostgreSQL
-
-```hcl
-use_aurora = true
-engine_cluster = "aurora-postgresql"
-engine_version_cluster = "15.3"
-parameter_group_family_aurora = "aurora-postgresql15"
-```
-
-> 💡 Порада: Aurora підтримує кілька інстансів (writer + читачі), тоді як звичайний RDS — лише один.
-
----
-
-### Зміна типу або класу інстансу
-
-* **Змінити тип рушія:** просто змініть `engine` або `engine_cluster`.
-* **Оновити версію рушія:** змініть `engine_version` або `engine_version_cluster`.
-* **Змінити клас інстансу:** оновіть `instance_class`, наприклад:
-
-  ```hcl
-  instance_class = "db.t3.large"
-  ```
-* **Змінити кількість реплік Aurora:**
-
-  ```hcl
-  aurora_instance_count = 3
-  ```
-
----
-
-## Додаткова інформація
-
-* Якщо використовується `publicly_accessible = true`, необхідно мати Internet Gateway у VPC.
-* Для середовища розробки рекомендовано ставити `skip_final_snapshot = true`.
-* Aurora автоматично створює writer + reader, якщо вказано `aurora_instance_count > 1`.
-
----
-
-## Приклади команд
+### Ініціалізація середовища
 
 ```bash
 terraform init
-terraform plan -target="module.rds"
-terraform apply -target="module.rds"
-terraform destroy -target="module.rds"
+```
+
+### Перевірка плану створення ресурсів
+
+```bash
+terraform plan
+```
+
+### Розгортання інфраструктури
+
+```bash
+terraform apply
+```
+
+### Перевірка ресурсів у Kubernetes
+
+```bash
+kubectl get nodes
+kubectl get all -A
 ```
 
 ---
 
-## Підсумок
+## Безпека та доступ
 
-Модуль підтримує **дві архітектури БД**:
+* **VPC** із приватними/публічними підмережами
+* **Security Groups** відкривають лише необхідні порти:
 
-* Стандартна RDS PostgreSQL
-* Aurora PostgreSQL Cluster
+  * 22 (SSH — опціонально)
+  * 80/443 (веб-доступ)
+  * 5432 (PostgreSQL)
+* **IAM Roles** для EKS та Jenkins (ECR, S3, CloudWatch, RDS)
 
-![img.png](img.png)
+---
 
-Вибір режиму здійснюється просто через прапорець `use_aurora`. Це дозволяє зручно переходити від одиночного інстансу до масштабованого кластера без зміни логіки застосунку.
+## CI/CD Pipeline
+
+### Jenkins (CI)
+
+1. **Пайплайн:** `modules/jenkins/jobs/goit_django_docker.groovy`
+2. **Jenkinsfile:** Знаходиться в корені Django-додатку.
+3. **Основні етапи:**
+
+   * Клонування репозиторію
+   * Побудова Docker-образу через Kaniko
+   * Push образу в ECR
+   * Автоматичний синк Argo CD
+
+**Доступ:**
+
+```bash
+kubectl port-forward svc/jenkins 8080:80 -n jenkins
+```
+
+або через LoadBalancer:
+
+```
+http://<jenkins-elb>.eu-west-2.elb.amazonaws.com
+```
+
+---
+
+### Argo CD (CD)
+
+1. Автоматично синхронізує Helm-чарти Django-додатку.
+2. Репозиторій і Application описані в `modules/argo_cd/charts/`.
+
+**Доступ:**
+
+```bash
+kubectl port-forward svc/argo-cd-argocd-server 8081:80 -n argocd
+```
+
+або через LoadBalancer:
+
+```
+https://<argocd-elb>.eu-west-2.elb.amazonaws.com
+```
+
+Пароль:
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath={.data.password} | base64 -d
+```
+
+---
+
+## Моніторинг і Grafana
+
+**Prometheus + Grafana** встановлені у namespace `monitoring`:
+
+```bash
+kubectl get all -n monitoring
+```
+
+**Доступ до Grafana:**
+
+```bash
+kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
+```
+
+Логін і пароль:
+
+```bash
+kubectl get secret -n monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-user}" | base64 --decode; echo
+kubectl get secret -n monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode; echo
+```
+
+## Скріншоти
+
+| №  | Опис                            |                 Скріншот                             |
+|----|---------------------------------| ------------------------------------------------------- |
+| 1  | Grafana Dashboard               | ![img_6.png](img_6.png)                |
+| 2  | AWS Console → RDS               | ![img_7.png](img_7.png)              |
+| 3  | ArgoCD UI                       | ![img_5.png](img_5.png)                     |
+| 4  | Jenkins UI                      | ![img_4.png](img_4.png)                     |
+| 5  | `kubectl get all -n jenkins`    | ![img_1.png](img_1.png)                     |
+| 6  | `kubectl get all -n argocd`     | ![img_2.png](img_2.png)                     |
+| 7  | `kubectl get all -n monitoring` | ![img_3.png](img_3.png)                     |
+
+
+---
+
+## Висновок
+
+У цьому проєкті було реалізовано повний DevOps цикл розгортання застосунку в AWS з використанням Terraform, Kubernetes та CI/CD.
+Архітектура включає всі основні компоненти сучасного продакшн-середовища:
+
+* VPC — забезпечує ізоляцію та безпеку на мережевому рівні.
+* EKS — використовується для оркестрації контейнерів і масштабування застосунків.
+* ECR — зберігає Docker-образи, що генеруються через Jenkins pipeline. 
+* RDS/Aurora — забезпечує надійну та керовану базу даних PostgreSQL. 
+* Jenkins + Argo CD — автоматизують CI/CD процеси, починаючи з білду Docker-образу і закінчуючи деплоєм у кластер. 
+* Prometheus + Grafana — реалізують моніторинг стану інфраструктури та застосунку, з можливістю візуалізації метрик і алертингу.

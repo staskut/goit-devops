@@ -13,6 +13,13 @@ resource "helm_release" "argo_cd" {
   ]
 
   create_namespace = true
+
+  set = [
+    {
+      name  = "crds.keep"
+      value = "false"
+    }
+  ]
 }
 
 resource "helm_release" "argo_apps" {
